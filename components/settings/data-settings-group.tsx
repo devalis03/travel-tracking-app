@@ -15,7 +15,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { clearTrips, trips } from "@/lib/data"
+import { clearTrips, formatDateRange, getGlobalStats, getTripCountryNames, getTripTitle, trips } from "@/lib/data"
 import { PROFILE_STORAGE_KEY } from "@/lib/profile"
 import { SETTINGS_STORAGE_KEY } from "@/lib/settings"
 import { useProfileContext } from "@/components/profile/profile-provider"
@@ -47,6 +47,74 @@ export function DataSettingsGroup() {
     }
   }
 
+  function exportPdf() {
+    const reportWindow = window.open("", "_blank")
+    if (!reportWindow) {
+      toast.error("Allow pop-ups to create the PDF")
+      return
+    }
+
+    const escapeHtml = (value: string) =>
+      value.replace(
+        /[&<>"']/g,
+        (character) =>
+          ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character] ?? character,
+      )
+    const stats = getGlobalStats()
+    const tripRows = [...trips]
+      .sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime())
+      .map(
+        (trip) => `
+          <article class="trip">
+            <h2>${escapeHtml(getTripTitle(trip))}</h2>
+            <p class="muted">${escapeHtml(formatDateRange(trip.startDate, trip.endDate))} · ${escapeHtml(getTripCountryNames(trip).join(", "))}</p>
+            <p><strong>Cities:</strong> ${escapeHtml(trip.cities.map((city) => city.name).join(", "))}</p>
+            ${trip.favoritePlace ? `<p><strong>Favorite place:</strong> ${escapeHtml(trip.favoritePlace)}</p>` : ""}
+            ${trip.highlight ? `<p><strong>Highlight:</strong> ${escapeHtml(trip.highlight)}</p>` : ""}
+            ${trip.note ? `<p>${escapeHtml(trip.note)}</p>` : ""}
+          </article>
+        `,
+      )
+      .join("")
+
+    reportWindow.document.write(`<!doctype html>
+      <html>
+        <head>
+          <title>Wayfarer travel journal</title>
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <style>
+            @page { margin: 18mm; }
+            body { color: #17232d; font: 11pt Arial, sans-serif; line-height: 1.5; margin: 0; }
+            h1, h2 { color: #173c49; font-family: Georgia, serif; }
+            h1 { margin-bottom: 0; }
+            h2 { margin: 0 0 4px; font-size: 16pt; }
+            .muted { color: #5f6c73; }
+            .summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 24px 0; }
+            .metric { border: 1px solid #d6dde0; border-radius: 8px; padding: 10px; }
+            .metric strong { display: block; font-size: 18pt; }
+            .trip { border-top: 1px solid #d6dde0; margin-top: 18px; padding-top: 14px; break-inside: avoid; }
+          </style>
+        </head>
+        <body>
+          <h1>Wayfarer travel journal</h1>
+          <p class="muted">${escapeHtml(profile.name)} · Exported ${escapeHtml(new Date().toLocaleDateString())}</p>
+          <div class="summary">
+            <div class="metric"><strong>${stats.countries}</strong>Countries</div>
+            <div class="metric"><strong>${stats.cities}</strong>Cities</div>
+            <div class="metric"><strong>${stats.tripsCount}</strong>Trips</div>
+          </div>
+          <h2>Trips</h2>
+          ${tripRows || "<p>No trips recorded.</p>"}
+        </body>
+      </html>`)
+    reportWindow.document.close()
+    reportWindow.focus()
+    reportWindow.addEventListener("afterprint", () => {
+      reportWindow.close()
+    })
+    reportWindow.print()
+  }
+
   function deleteLocalData() {
     clearTrips()
     resetProfile()
@@ -65,8 +133,14 @@ export function DataSettingsGroup() {
     <>
       <SettingsGroup title="Data">
         <SettingsRow
+          label="Export travel journal"
+          description="Create a readable PDF report without photos"
+          onClick={exportPdf}
+          action={<ChevronRight className="size-4 text-muted-foreground" />}
+        />
+        <SettingsRow
           label="Export travel data"
-          description="Download a copy of your trips and memories"
+          description="Download a JSON backup for advanced use"
           onClick={exportData}
           action={<ChevronRight className="size-4 text-muted-foreground" />}
         />
