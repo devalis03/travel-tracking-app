@@ -4,7 +4,7 @@ export function ContinentSummary() {
   const counts = getContinentCounts()
 
   return (
-    <div className="flex flex-wrap gap-x-5 gap-y-2 px-4 pb-1">
+    <div aria-label="Countries visited by continent" className="flex flex-wrap gap-x-5 gap-y-2 px-4 pb-1">
       {CONTINENTS.map((continent) => {
         const count = counts[continent.name] ?? 0
         const visited = count > 0

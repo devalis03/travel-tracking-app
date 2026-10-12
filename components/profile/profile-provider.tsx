@@ -6,6 +6,7 @@ import { DEFAULT_PROFILE, PROFILE_STORAGE_KEY, type ProfileInfo } from "@/lib/pr
 interface ProfileContextValue {
   profile: ProfileInfo
   updateProfile: (patch: Partial<ProfileInfo>) => void
+  resetProfile: () => void
 }
 
 const ProfileContext = createContext<ProfileContextValue | null>(null)
@@ -15,7 +16,18 @@ function loadProfile(): ProfileInfo {
   try {
     const raw = window.localStorage.getItem(PROFILE_STORAGE_KEY)
     if (!raw) return DEFAULT_PROFILE
-    return { ...DEFAULT_PROFILE, ...JSON.parse(raw) }
+    const saved: unknown = JSON.parse(raw)
+    if (!saved || typeof saved !== "object") return DEFAULT_PROFILE
+    const profile = saved as Partial<ProfileInfo>
+    return {
+      ...DEFAULT_PROFILE,
+      ...(typeof profile.name === "string" ? { name: profile.name } : {}),
+      ...(typeof profile.username === "string" ? { username: profile.username } : {}),
+      ...(typeof profile.homeCountry === "string" ? { homeCountry: profile.homeCountry } : {}),
+      ...(typeof profile.bio === "string" ? { bio: profile.bio } : {}),
+      ...(typeof profile.avatarUrl === "string" ? { avatarUrl: profile.avatarUrl } : {}),
+      ...(typeof profile.memberSince === "string" ? { memberSince: profile.memberSince } : {}),
+    }
   } catch {
     return DEFAULT_PROFILE
   }
@@ -49,7 +61,11 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     setProfile((prev) => ({ ...prev, ...patch }))
   }
 
-  return <ProfileContext.Provider value={{ profile, updateProfile }}>{children}</ProfileContext.Provider>
+  function resetProfile() {
+    setProfile(DEFAULT_PROFILE)
+  }
+
+  return <ProfileContext.Provider value={{ profile, updateProfile, resetProfile }}>{children}</ProfileContext.Provider>
 }
 
 export function useProfileContext() {

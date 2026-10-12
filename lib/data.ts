@@ -199,6 +199,38 @@ function persistTrips(): boolean {
   }
 }
 
+function isTrip(value: unknown): value is Trip {
+  if (!value || typeof value !== "object") return false
+  const trip = value as Partial<Trip>
+  return (
+    typeof trip.id === "string" &&
+    typeof trip.destinationLabel === "string" &&
+    Array.isArray(trip.cities) &&
+    trip.cities.every(
+      (city) =>
+        city &&
+        typeof city === "object" &&
+        typeof city.name === "string" &&
+        typeof city.countryCode === "string" &&
+        typeof city.lat === "number" &&
+        typeof city.lon === "number",
+    ) &&
+    typeof trip.startDate === "string" &&
+    typeof trip.endDate === "string" &&
+    (trip.wouldReturn === "yes" || trip.wouldReturn === "no" || trip.wouldReturn === "unsure") &&
+    Array.isArray(trip.photos) &&
+    trip.photos.every(
+      (photo) =>
+        photo &&
+        typeof photo === "object" &&
+        typeof photo.id === "string" &&
+        typeof photo.url === "string" &&
+        (photo.caption === undefined || typeof photo.caption === "string"),
+    ) &&
+    typeof trip.coverImage === "string"
+  )
+}
+
 export function subscribeTrips(listener: () => void): () => void {
   tripListeners.add(listener)
   return () => tripListeners.delete(listener)
@@ -219,8 +251,13 @@ export function hydrateTripsFromStorage() {
   try {
     const raw = window.localStorage.getItem(TRIPS_STORAGE_KEY)
     if (raw) {
-      const saved = JSON.parse(raw) as Trip[]
-      if (Array.isArray(saved)) trips.splice(0, trips.length, ...saved)
+      const saved: unknown = JSON.parse(raw)
+      if (Array.isArray(saved)) {
+        const validTrips = saved.filter(isTrip)
+        if (saved.length === 0 || validTrips.length > 0) {
+          trips.splice(0, trips.length, ...validTrips)
+        }
+      }
     }
   } catch {
     // Corrupt storage — fall back to the seed trips.
@@ -253,6 +290,17 @@ export function deleteTrip(id: string) {
 /** Restores the original demo trips and clears the saved list. */
 export function resetTrips() {
   trips.splice(0, trips.length, ...SEED_TRIPS)
+  try {
+    window.localStorage.removeItem(TRIPS_STORAGE_KEY)
+  } catch {
+    // ignore
+  }
+  notifyTrips()
+}
+
+/** Removes all locally stored trips and clears the in-memory list. */
+export function clearTrips() {
+  trips.splice(0, trips.length)
   try {
     window.localStorage.removeItem(TRIPS_STORAGE_KEY)
   } catch {
@@ -395,8 +443,7 @@ export function getContinentCounts(): Record<string, number> {
   for (const code of getVisitedCountryCodes()) {
     const meta = getCountryMeta(code)
     if (!meta) continue
-    const countryTrips = getTripsByCountry(code)
-    counts[meta.continent] = (counts[meta.continent] ?? 0) + countryTrips.length
+    counts[meta.continent] = (counts[meta.continent] ?? 0) + 1
   }
   return counts
 }
@@ -459,7 +506,7 @@ export function getGlobalStats(): GlobalStats {
       count: visitCountByCountry.get(mostVisitedCode) ?? 0,
     },
     mostTraveledYear,
-    latestDestination: latest?.destinationLabel ?? "",
+    latestDestination: latest ? getTripTitle(latest) : "",
   }
 }
 
