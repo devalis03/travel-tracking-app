@@ -6,6 +6,7 @@ import { DEFAULT_SETTINGS, SETTINGS_STORAGE_KEY, type SettingsState } from "@/li
 interface SettingsContextValue {
   settings: SettingsState
   updateSetting: <K extends keyof SettingsState>(key: K, value: SettingsState[K]) => void
+  resetSettings: () => void
 }
 
 const SettingsContext = createContext<SettingsContextValue | null>(null)
@@ -19,7 +20,26 @@ function loadSettings(): SettingsState {
       const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches
       return { ...DEFAULT_SETTINGS, reduceMotion: prefersReducedMotion }
     }
-    return { ...DEFAULT_SETTINGS, ...JSON.parse(raw) }
+    const saved: unknown = JSON.parse(raw)
+    if (!saved || typeof saved !== "object") return DEFAULT_SETTINGS
+    const settings = saved as Partial<SettingsState>
+    return {
+      ...DEFAULT_SETTINGS,
+      ...(typeof settings.publicProfile === "boolean" ? { publicProfile: settings.publicProfile } : {}),
+      ...(typeof settings.showStatsPublicly === "boolean" ? { showStatsPublicly: settings.showStatsPublicly } : {}),
+      ...(typeof settings.showAchievementsPublicly === "boolean"
+        ? { showAchievementsPublicly: settings.showAchievementsPublicly }
+        : {}),
+      ...(typeof settings.showMemoriesPublicly === "boolean" ? { showMemoriesPublicly: settings.showMemoriesPublicly } : {}),
+      ...(typeof settings.automaticPhotoSuggestions === "boolean"
+        ? { automaticPhotoSuggestions: settings.automaticPhotoSuggestions }
+        : {}),
+      ...(settings.theme === "system" || settings.theme === "light" || settings.theme === "dark"
+        ? { theme: settings.theme }
+        : {}),
+      ...(typeof settings.reduceMotion === "boolean" ? { reduceMotion: settings.reduceMotion } : {}),
+      ...(typeof settings.timelineAnimations === "boolean" ? { timelineAnimations: settings.timelineAnimations } : {}),
+    }
   } catch {
     return DEFAULT_SETTINGS
   }
@@ -54,7 +74,11 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     setSettings((prev) => ({ ...prev, [key]: value }))
   }
 
-  return <SettingsContext.Provider value={{ settings, updateSetting }}>{children}</SettingsContext.Provider>
+  function resetSettings() {
+    setSettings(DEFAULT_SETTINGS)
+  }
+
+  return <SettingsContext.Provider value={{ settings, updateSetting, resetSettings }}>{children}</SettingsContext.Provider>
 }
 
 export function useSettingsContext() {
