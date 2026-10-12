@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { toast } from "sonner"
 import { ChevronRight } from "lucide-react"
+import { jsPDF } from "jspdf"
 import { SettingsGroup } from "@/components/settings/settings-group"
 import { SettingsRow } from "@/components/settings/settings-row"
 import {
@@ -48,71 +49,68 @@ export function DataSettingsGroup() {
   }
 
   function exportPdf() {
-    const reportWindow = window.open("", "_blank")
-    if (!reportWindow) {
-      toast.error("Allow pop-ups to create the PDF")
-      return
+    try {
+      const pdf = new jsPDF({ format: "a4", unit: "mm" })
+      const pageWidth = pdf.internal.pageSize.getWidth()
+      const pageHeight = pdf.internal.pageSize.getHeight()
+      const margin = 18
+      const textWidth = pageWidth - margin * 2
+      let cursorY = margin
+
+      const ensureSpace = (height: number) => {
+        if (cursorY + height > pageHeight - margin) {
+          pdf.addPage()
+          cursorY = margin
+        }
+      }
+
+      const addText = (text: string, size: number, color: [number, number, number], gap = 5) => {
+        pdf.setFontSize(size)
+        pdf.setTextColor(...color)
+        const lines = pdf.splitTextToSize(text, textWidth) as string[]
+        const lineHeight = size * 0.45
+        ensureSpace(lines.length * lineHeight + gap)
+        pdf.text(lines, margin, cursorY)
+        cursorY += lines.length * lineHeight + gap
+      }
+
+      const stats = getGlobalStats()
+      pdf.setFont("helvetica", "bold")
+      addText("Wayfarer Travel Journal", 24, [23, 60, 73], 3)
+      addText(profile.name, 11, [95, 108, 115], 12)
+
+      pdf.setFont("helvetica", "normal")
+      addText(`${stats.countries} countries · ${stats.cities} cities · ${stats.tripsCount} trips`, 12, [23, 60, 73], 12)
+      addText("Trips", 17, [23, 60, 73], 7)
+
+      const sortedTrips = [...trips].sort(
+        (a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime(),
+      )
+
+      for (const trip of sortedTrips) {
+        const title = getTripTitle(trip)
+        const details = `${formatDateRange(trip.startDate, trip.endDate)} · ${getTripCountryNames(trip).join(", ")}`
+        const cities = `Cities: ${trip.cities.map((city) => city.name).join(", ")}`
+        const optionalDetails = [trip.favoritePlace && `Favorite place: ${trip.favoritePlace}`, trip.highlight && `Highlight: ${trip.highlight}`, trip.note]
+          .filter((value): value is string => Boolean(value))
+
+        ensureSpace(22)
+        pdf.setDrawColor(214, 221, 224)
+        pdf.line(margin, cursorY - 2, pageWidth - margin, cursorY - 2)
+        pdf.setFont("helvetica", "bold")
+        addText(title, 14, [23, 60, 73], 2)
+        pdf.setFont("helvetica", "normal")
+        addText(details, 9, [95, 108, 115], 3)
+        addText(cities, 10, [23, 35, 45], 3)
+        for (const detail of optionalDetails) addText(detail, 10, [23, 35, 45], 3)
+        cursorY += 5
+      }
+
+      pdf.save(`wayfarer-travel-journal-${new Date().toISOString().slice(0, 10)}.pdf`)
+      toast.success("Travel journal PDF exported")
+    } catch {
+      toast.error("Couldn't create the PDF")
     }
-
-    const escapeHtml = (value: string) =>
-      value.replace(
-        /[&<>"']/g,
-        (character) =>
-          ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character] ?? character,
-      )
-    const stats = getGlobalStats()
-    const tripRows = [...trips]
-      .sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime())
-      .map(
-        (trip) => `
-          <article class="trip">
-            <h2>${escapeHtml(getTripTitle(trip))}</h2>
-            <p class="muted">${escapeHtml(formatDateRange(trip.startDate, trip.endDate))} · ${escapeHtml(getTripCountryNames(trip).join(", "))}</p>
-            <p><strong>Cities:</strong> ${escapeHtml(trip.cities.map((city) => city.name).join(", "))}</p>
-            ${trip.favoritePlace ? `<p><strong>Favorite place:</strong> ${escapeHtml(trip.favoritePlace)}</p>` : ""}
-            ${trip.highlight ? `<p><strong>Highlight:</strong> ${escapeHtml(trip.highlight)}</p>` : ""}
-            ${trip.note ? `<p>${escapeHtml(trip.note)}</p>` : ""}
-          </article>
-        `,
-      )
-      .join("")
-
-    reportWindow.document.write(`<!doctype html>
-      <html>
-        <head>
-          <title>Wayfarer travel journal</title>
-          <meta name="viewport" content="width=device-width, initial-scale=1">
-          <style>
-            @page { margin: 18mm; }
-            body { color: #17232d; font: 11pt Arial, sans-serif; line-height: 1.5; margin: 0; }
-            h1, h2 { color: #173c49; font-family: Georgia, serif; }
-            h1 { margin-bottom: 0; }
-            h2 { margin: 0 0 4px; font-size: 16pt; }
-            .muted { color: #5f6c73; }
-            .summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 24px 0; }
-            .metric { border: 1px solid #d6dde0; border-radius: 8px; padding: 10px; }
-            .metric strong { display: block; font-size: 18pt; }
-            .trip { border-top: 1px solid #d6dde0; margin-top: 18px; padding-top: 14px; break-inside: avoid; }
-          </style>
-        </head>
-        <body>
-          <h1>Wayfarer travel journal</h1>
-          <p class="muted">${escapeHtml(profile.name)} · Exported ${escapeHtml(new Date().toLocaleDateString())}</p>
-          <div class="summary">
-            <div class="metric"><strong>${stats.countries}</strong>Countries</div>
-            <div class="metric"><strong>${stats.cities}</strong>Cities</div>
-            <div class="metric"><strong>${stats.tripsCount}</strong>Trips</div>
-          </div>
-          <h2>Trips</h2>
-          ${tripRows || "<p>No trips recorded.</p>"}
-        </body>
-      </html>`)
-    reportWindow.document.close()
-    reportWindow.focus()
-    reportWindow.addEventListener("afterprint", () => {
-      reportWindow.close()
-    })
-    reportWindow.print()
   }
 
   function deleteLocalData() {
