@@ -443,8 +443,7 @@ export function getContinentCounts(): Record<string, number> {
   for (const code of getVisitedCountryCodes()) {
     const meta = getCountryMeta(code)
     if (!meta) continue
-    const countryTrips = getTripsByCountry(code)
-    counts[meta.continent] = (counts[meta.continent] ?? 0) + countryTrips.length
+    counts[meta.continent] = (counts[meta.continent] ?? 0) + 1
   }
   return counts
 }
@@ -507,7 +506,7 @@ export function getGlobalStats(): GlobalStats {
       count: visitCountByCountry.get(mostVisitedCode) ?? 0,
     },
     mostTraveledYear,
-    latestDestination: latest?.destinationLabel ?? "",
+    latestDestination: latest ? getTripTitle(latest) : "",
   }
 }
 

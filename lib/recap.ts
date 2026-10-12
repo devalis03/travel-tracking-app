@@ -1,4 +1,4 @@
-import { trips, getCountryMeta, getAllTripsSorted, getTripCountryCodes, getTripCountryNames } from "@/lib/data"
+import { trips, getCountryMeta, getAllTripsSorted, getTripCountryCodes, getTripCountryNames, getTripTitle } from "@/lib/data"
 import type { Trip } from "@/lib/types"
 
 /**
@@ -80,14 +80,14 @@ export function getRecapForYear(year: number): RecapData | undefined {
 
   const places: RecapPlace[] = yearTrips.map((t) => ({
     tripId: t.id,
-    destinationLabel: t.destinationLabel,
+    destinationLabel: getTripTitle(t),
     countryName: getTripCountryNames(t).join(" & "),
     coverImage: t.coverImage,
   }))
 
   const highlights = yearTrips
     .filter((t) => t.highlight)
-    .map((t) => ({ tripId: t.id, destinationLabel: t.destinationLabel, text: t.highlight as string }))
+    .map((t) => ({ tripId: t.id, destinationLabel: getTripTitle(t), text: t.highlight as string }))
 
   // Prefer the trip with the most photos for the hero image — it's the
   // most visually representative moment of the year.
