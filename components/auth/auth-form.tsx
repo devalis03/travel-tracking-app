@@ -54,6 +54,22 @@ export function AuthForm() {
     }
   }
 
+  async function signInWithGoogle() {
+    setPending(true)
+    try {
+      const { error } = await createSupabaseBrowserClient().auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+        },
+      })
+      if (error) throw error
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Google sign-in failed")
+      setPending(false)
+    }
+  }
+
   const isSignUp = mode === "sign-up"
 
   return (
@@ -107,6 +123,13 @@ export function AuthForm() {
       </div>
       <Button type="submit" disabled={pending}>
         {pending ? "Please wait..." : isSignUp ? "Create account" : "Sign in"}
+      </Button>
+      <div className="relative flex items-center justify-center">
+        <span className="absolute inset-x-0 border-t border-border" />
+        <span className="relative bg-background px-2 text-xs text-muted-foreground">or</span>
+      </div>
+      <Button type="button" variant="outline" onClick={signInWithGoogle} disabled={pending}>
+        Continue with Google
       </Button>
       <button
         type="button"
