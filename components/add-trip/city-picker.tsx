@@ -1,10 +1,21 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { MapPin, Plus, Search, X } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { cityKey, createManualCity, getWorldCountry, searchCities, searchCountries, toCityInfo } from "@/lib/locations"
+import {
+  cityKey,
+  createManualCity,
+  getWorldCountry,
+  searchCities,
+  searchCitiesInCatalog,
+  searchCountries,
+  searchCountriesInCatalog,
+  toCityInfo,
+  type CitySearchResult,
+} from "@/lib/locations"
+import { fetchLocationCatalog, type LocationCatalog } from "@/lib/supabase/location-catalog"
 import type { CityInfo } from "@/lib/types"
 
 interface CityPickerProps {
@@ -22,9 +33,30 @@ export function CityPicker({ cities, onChange, error }: CityPickerProps) {
   const [query, setQuery] = useState("")
   const [manualName, setManualName] = useState<string | null>(null)
   const [countryQuery, setCountryQuery] = useState("")
+  const [catalog, setCatalog] = useState<LocationCatalog | null>(null)
 
-  const results = useMemo(() => searchCities(query), [query])
-  const countryResults = useMemo(() => searchCountries(countryQuery, 6), [countryQuery])
+  useEffect(() => {
+    let active = true
+    fetchLocationCatalog()
+      .then((nextCatalog) => {
+        if (active) setCatalog(nextCatalog)
+      })
+      .catch((catalogError) => {
+        console.error("Could not load the Supabase location catalog; using the local catalog.", catalogError)
+      })
+    return () => {
+      active = false
+    }
+  }, [])
+
+  const results = useMemo<CitySearchResult[]>(
+    () => (catalog ? searchCitiesInCatalog(query, catalog.cities, catalog.countries) : searchCities(query)),
+    [catalog, query],
+  )
+  const countryResults = useMemo(
+    () => (catalog ? searchCountriesInCatalog(countryQuery, catalog.countries, 6) : searchCountries(countryQuery, 6)),
+    [catalog, countryQuery],
+  )
   const trimmed = query.trim()
 
   function addCity(city: CityInfo) {
