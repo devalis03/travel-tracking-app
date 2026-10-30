@@ -477,6 +477,7 @@ Buenos Aires|AR|-34.6037|-58.3816
 Mendoza|AR|-32.8908|-68.8272
 Cordoba|AR|-31.4201|-64.1888
 Bariloche|AR|-41.1335|-71.3103
+El Chalten|AR|-49.3315|-72.8863
 Ushuaia|AR|-54.8019|-68.303
 Salta|AR|-24.7821|-65.4232
 Rosario|AR|-32.9442|-60.6505
@@ -631,6 +632,14 @@ export function searchCountries(query: string, limit = 8): CountryMeta[] {
 /** Converts a search result (or a manual entry) into the `CityInfo` stored on a trip. */
 export function toCityInfo(city: LocationCity): CityInfo {
   return { name: city.name, lat: city.lat, lon: city.lon, countryCode: city.countryCode, placeId: city.id }
+}
+
+/** Returns canonical coordinates for a city when the local catalog knows it. */
+export function getKnownCityCoordinates(name: string, countryCode: string): Pick<CityInfo, "lat" | "lon"> | undefined {
+  const city = INDEXED_CITIES.find(
+    (entry) => entry.city.countryCode === countryCode && entry.key === normalize(name),
+  )?.city
+  return city ? { lat: city.lat, lon: city.lon } : undefined
 }
 
 /** Fallback for a destination the dataset doesn't know: the user supplies the country. */
