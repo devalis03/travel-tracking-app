@@ -13,6 +13,8 @@ type AuthMode = "sign-in" | "sign-up"
 export function AuthForm() {
   const router = useRouter()
   const [mode, setMode] = useState<AuthMode>("sign-in")
+  const [firstName, setFirstName] = useState("")
+  const [lastName, setLastName] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [pending, setPending] = useState(false)
@@ -35,6 +37,11 @@ export function AuthForm() {
         email,
         password,
         options: {
+          data: {
+            first_name: firstName.trim(),
+            last_name: lastName.trim(),
+            display_name: `${firstName.trim()} ${lastName.trim()}`.trim(),
+          },
           emailRedirectTo: `${window.location.origin}/auth/callback`,
         },
       })
@@ -52,6 +59,30 @@ export function AuthForm() {
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
       <div className="flex flex-col gap-1.5">
+        {isSignUp && (
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="auth-first-name">First name</Label>
+              <Input
+                id="auth-first-name"
+                value={firstName}
+                onChange={(event) => setFirstName(event.target.value)}
+                autoComplete="given-name"
+                required
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="auth-last-name">Last name</Label>
+              <Input
+                id="auth-last-name"
+                value={lastName}
+                onChange={(event) => setLastName(event.target.value)}
+                autoComplete="family-name"
+                required
+              />
+            </div>
+          </div>
+        )}
         <Label htmlFor="auth-email">Email</Label>
         <Input
           id="auth-email"

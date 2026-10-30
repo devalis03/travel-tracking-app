@@ -4,6 +4,7 @@ import { PrivacySettingsGroup } from "@/components/settings/privacy-settings-gro
 import { MemoriesSettingsGroup } from "@/components/settings/memories-settings-group"
 import { ExperienceSettingsGroup } from "@/components/settings/experience-settings-group"
 import { DataSettingsGroup } from "@/components/settings/data-settings-group"
+import { AccountSettingsGroup } from "@/components/settings/account-settings-group"
 
 export default function SettingsPage() {
   return (
@@ -15,6 +16,7 @@ export default function SettingsPage() {
         <MemoriesSettingsGroup />
         <ExperienceSettingsGroup />
         <DataSettingsGroup />
+        <AccountSettingsGroup />
       </div>
     </div>
   )
