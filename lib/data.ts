@@ -309,6 +309,12 @@ export function clearTrips() {
   notifyTrips()
 }
 
+export function replaceTrips(nextTrips: Trip[]) {
+  trips.splice(0, trips.length, ...nextTrips)
+  persistTrips()
+  notifyTrips()
+}
+
 const WORLD_COUNTRY_COUNT = 195
 
 export function getCountryMeta(code: string): CountryMeta | undefined {
