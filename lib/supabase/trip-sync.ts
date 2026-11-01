@@ -1,6 +1,15 @@
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser-client"
 import type { MemoryPhoto, Trip } from "@/lib/types"
 
+function formatSyncError(error: unknown): string {
+  if (error instanceof Error) return error.message
+  if (error && typeof error === "object") {
+    const details = error as { message?: string; details?: string; hint?: string; code?: string }
+    return [details.message, details.details, details.hint, details.code].filter(Boolean).join(" | ") || JSON.stringify(error)
+  }
+  return String(error)
+}
+
 interface RemoteTripRow {
   id: string
   local_id: string | null
@@ -182,18 +191,22 @@ async function readRemoteTrips(userId: string): Promise<Trip[]> {
 }
 
 export async function syncTripsWithSupabase(localTrips: Trip[]): Promise<Trip[] | null> {
-  const supabase = createSupabaseBrowserClient()
-  const { data: userResult, error: userError } = await supabase.auth.getUser()
-  if (userError || !userResult.user) {
-    if (userError && userError.name !== "AuthSessionMissingError") {
-      console.error("Could not identify the user while syncing trips.", userError)
+  try {
+    const supabase = createSupabaseBrowserClient()
+    const { data: userResult, error: userError } = await supabase.auth.getUser()
+    if (userError || !userResult.user) {
+      if (userError && userError.name !== "AuthSessionMissingError") {
+        console.error("Could not identify the user while syncing trips.", userError)
+      }
+      return null
     }
-    return null
-  }
 
-  if (localTrips.length > 0) {
-    for (const trip of localTrips) await importTrip(userResult.user.id, trip)
-  }
+    if (localTrips.length > 0) {
+      for (const trip of localTrips) await importTrip(userResult.user.id, trip)
+    }
 
-  return readRemoteTrips(userResult.user.id)
+    return readRemoteTrips(userResult.user.id)
+  } catch (error) {
+    throw new Error(`Trip sync failed: ${formatSyncError(error)}`)
+  }
 }
