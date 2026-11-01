@@ -2,6 +2,8 @@
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react"
 import { DEFAULT_PROFILE, PROFILE_STORAGE_KEY, type ProfileInfo } from "@/lib/profile"
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser-client"
+import { getWorldCountry, WORLD_COUNTRIES } from "@/lib/locations"
 
 interface ProfileContextValue {
   profile: ProfileInfo
@@ -45,8 +47,45 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   const [hydrated, setHydrated] = useState(false)
 
   useEffect(() => {
-    setProfile(loadProfile())
-    setHydrated(true)
+    let active = true
+
+    async function hydrateProfile() {
+      const localProfile = loadProfile()
+      if (active) setProfile(localProfile)
+
+      const { data: userResult, error: userError } = await createSupabaseBrowserClient().auth.getUser()
+      if (userError || !userResult.user) {
+        if (userError) console.error("Could not load the authenticated user profile.", userError)
+        if (active) setHydrated(true)
+        return
+      }
+
+      const { data, error } = await createSupabaseBrowserClient()
+        .from("profiles")
+        .select("username,display_name,bio,home_country_code,avatar_url,member_since")
+        .eq("id", userResult.user.id)
+        .maybeSingle()
+
+      if (error) {
+        console.error("Could not load the profile from Supabase; using the local profile.", error)
+      } else if (data && active) {
+        setProfile({
+          name: data.display_name,
+          username: data.username,
+          homeCountry: data.home_country_code ? (getWorldCountry(data.home_country_code)?.name ?? data.home_country_code) : "",
+          bio: data.bio ?? "",
+          avatarUrl: data.avatar_url ?? DEFAULT_PROFILE.avatarUrl,
+          memberSince: data.member_since,
+        })
+      }
+
+      if (active) setHydrated(true)
+    }
+
+    void hydrateProfile()
+    return () => {
+      active = false
+    }
   }, [])
 
   useEffect(() => {
@@ -59,11 +98,39 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   }, [profile, hydrated])
 
   function updateProfile(patch: Partial<ProfileInfo>) {
-    setProfile((prev) => ({ ...prev, ...patch }))
+    setProfile((prev) => {
+      const next = { ...prev, ...patch }
+      void persistProfile(next)
+      return next
+    })
   }
 
   function resetProfile() {
     setProfile(DEFAULT_PROFILE)
+  }
+
+  async function persistProfile(profile: ProfileInfo) {
+    const supabase = createSupabaseBrowserClient()
+    const { data: userResult, error: userError } = await supabase.auth.getUser()
+    if (userError || !userResult.user) {
+      if (userError) console.error("Could not identify the user while saving the profile.", userError)
+      return
+    }
+
+    const countryCode = WORLD_COUNTRIES.find((country) => country.name.toLowerCase() === profile.homeCountry.toLowerCase())?.code
+    const profileUpdate = {
+      username: profile.username,
+      display_name: profile.name,
+      bio: profile.bio || null,
+      avatar_url: profile.avatarUrl || null,
+      ...(countryCode ? { home_country_code: countryCode } : {}),
+    }
+    const { error } = await supabase
+      .from("profiles")
+      .update(profileUpdate)
+      .eq("id", userResult.user.id)
+
+    if (error) console.error("Could not save the profile to Supabase.", error)
   }
 
   return <ProfileContext.Provider value={{ profile, hydrated, updateProfile, resetProfile }}>{children}</ProfileContext.Provider>
