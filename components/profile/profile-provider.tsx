@@ -55,7 +55,9 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
 
       const { data: userResult, error: userError } = await createSupabaseBrowserClient().auth.getUser()
       if (userError || !userResult.user) {
-        if (userError) console.error("Could not load the authenticated user profile.", userError)
+        if (userError && userError.name !== "AuthSessionMissingError") {
+          console.error("Could not load the authenticated user profile.", userError)
+        }
         if (active) setHydrated(true)
         return
       }
@@ -113,7 +115,9 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     const supabase = createSupabaseBrowserClient()
     const { data: userResult, error: userError } = await supabase.auth.getUser()
     if (userError || !userResult.user) {
-      if (userError) console.error("Could not identify the user while saving the profile.", userError)
+      if (userError && userError.name !== "AuthSessionMissingError") {
+        console.error("Could not identify the user while saving the profile.", userError)
+      }
       return
     }
 
