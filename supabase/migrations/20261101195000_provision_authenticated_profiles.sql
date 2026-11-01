@@ -1,7 +1,7 @@
 create or replace function public.provision_auth_user(
-  user_id uuid,
-  user_email text,
-  user_metadata jsonb
+  p_user_id uuid,
+  p_user_email text,
+  p_user_metadata jsonb
 )
 returns void
 language plpgsql
@@ -17,9 +17,9 @@ declare
 begin
   display_name := nullif(
     trim(coalesce(
-      user_metadata ->> 'display_name',
-      concat_ws(' ', user_metadata ->> 'first_name', user_metadata ->> 'last_name'),
-      split_part(user_email, '@', 1),
+      p_user_metadata ->> 'display_name',
+      concat_ws(' ', p_user_metadata ->> 'first_name', p_user_metadata ->> 'last_name'),
+      split_part(p_user_email, '@', 1),
       'Wayfarer traveler'
     )),
     ''
@@ -31,7 +31,7 @@ begin
     username_base := 'traveler';
   end if;
   username_base := left(username_base, 24);
-  suffix := substr(replace(user_id::text, '-', ''), 1, 5);
+  suffix := substr(replace(p_user_id::text, '-', ''), 1, 5);
   username_candidate := username_base;
 
   while exists (select 1 from public.profiles where lower(username) = lower(username_candidate)) loop
@@ -43,11 +43,11 @@ begin
   end loop;
 
   insert into public.profiles (id, username, display_name)
-  values (user_id, username_candidate, coalesce(display_name, 'Wayfarer traveler'))
+  values (p_user_id, username_candidate, coalesce(display_name, 'Wayfarer traveler'))
   on conflict (id) do nothing;
 
   insert into public.user_settings (user_id)
-  values (user_id)
+  values (p_user_id)
   on conflict (user_id) do nothing;
 end;
 $$;
