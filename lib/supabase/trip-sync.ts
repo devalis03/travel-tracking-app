@@ -191,13 +191,7 @@ export async function syncTripsWithSupabase(localTrips: Trip[]): Promise<Trip[] 
     return null
   }
 
-  const { count, error: countError } = await supabase
-    .from("trips")
-    .select("id", { count: "exact", head: true })
-    .eq("user_id", userResult.user.id)
-  if (countError) throw countError
-
-  if ((count ?? 0) === 0 && localTrips.length > 0) {
+  if (localTrips.length > 0) {
     for (const trip of localTrips) await importTrip(userResult.user.id, trip)
   }
 
