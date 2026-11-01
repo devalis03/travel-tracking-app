@@ -1,7 +1,6 @@
 "use client"
 
 import { use } from "react"
-import { notFound } from "next/navigation"
 import { Lock } from "lucide-react"
 import { getGlobalStats, getAllMemories } from "@/lib/data"
 import { getMemberSinceYear } from "@/lib/profile"
@@ -23,8 +22,22 @@ import { RecapShareButton } from "@/components/recap/recap-share-button"
  */
 export default function PublicProfilePage({ params }: { params: Promise<{ username: string }> }) {
   const { username } = use(params)
-  const { profile: PROFILE } = useProfileContext()
-  if (username !== PROFILE.username) notFound()
+  const { profile: PROFILE, hydrated } = useProfileContext()
+  if (!hydrated) {
+    return (
+      <div className="flex h-full items-center justify-center px-6 text-sm text-muted-foreground">
+        Loading profile...
+      </div>
+    )
+  }
+  if (username.toLowerCase() !== PROFILE.username.toLowerCase()) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
+        <p className="font-serif text-lg">Profile not found</p>
+        <p className="max-w-xs text-sm text-muted-foreground">This username does not match an available Wayfarer profile.</p>
+      </div>
+    )
+  }
 
   const { settings } = useSettingsContext()
   const stats = getGlobalStats()

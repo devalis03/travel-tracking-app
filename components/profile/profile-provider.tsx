@@ -5,6 +5,7 @@ import { DEFAULT_PROFILE, PROFILE_STORAGE_KEY, type ProfileInfo } from "@/lib/pr
 
 interface ProfileContextValue {
   profile: ProfileInfo
+  hydrated: boolean
   updateProfile: (patch: Partial<ProfileInfo>) => void
   resetProfile: () => void
 }
@@ -65,7 +66,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     setProfile(DEFAULT_PROFILE)
   }
 
-  return <ProfileContext.Provider value={{ profile, updateProfile, resetProfile }}>{children}</ProfileContext.Provider>
+  return <ProfileContext.Provider value={{ profile, hydrated, updateProfile, resetProfile }}>{children}</ProfileContext.Provider>
 }
 
 export function useProfileContext() {
