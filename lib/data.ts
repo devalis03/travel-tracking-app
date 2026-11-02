@@ -1,5 +1,5 @@
 import type { CityInfo, CountryMeta, CountryPreference, Trip, UnvisitedStatus } from "@/lib/types"
-import { getWorldCountry } from "@/lib/locations"
+import { getKnownCityCoordinates, getWorldCountry } from "@/lib/locations"
 
 /**
  * Single source of truth for mock travel data. Every screen (Map, Country
@@ -309,6 +309,12 @@ export function clearTrips() {
   notifyTrips()
 }
 
+export function replaceTrips(nextTrips: Trip[]) {
+  trips.splice(0, trips.length, ...nextTrips)
+  persistTrips()
+  notifyTrips()
+}
+
 const WORLD_COUNTRY_COUNT = 195
 
 export function getCountryMeta(code: string): CountryMeta | undefined {
@@ -381,7 +387,9 @@ export function getCitiesByCountry(code: string): Array<{ name: string; lat: num
   const seen = new Map<string, { name: string; lat: number; lon: number }>()
   for (const t of getTripsByCountry(code)) {
     for (const city of t.cities) {
-      if (city.countryCode === code && !seen.has(city.name)) seen.set(city.name, city)
+      if (city.countryCode !== code || seen.has(city.name)) continue
+      const canonicalCoordinates = getKnownCityCoordinates(city.name, city.countryCode)
+      seen.set(city.name, canonicalCoordinates ? { ...city, ...canonicalCoordinates } : city)
     }
   }
   return Array.from(seen.values())

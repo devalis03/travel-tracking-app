@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react"
 import { DEFAULT_SETTINGS, SETTINGS_STORAGE_KEY, type SettingsState } from "@/lib/settings"
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser-client"
 
 interface SettingsContextValue {
   settings: SettingsState
@@ -57,8 +58,51 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const [hydrated, setHydrated] = useState(false)
 
   useEffect(() => {
-    setSettings(loadSettings())
-    setHydrated(true)
+    let active = true
+
+    async function hydrateSettings() {
+      const localSettings = loadSettings()
+      if (active) setSettings(localSettings)
+
+      const { data: userResult, error: userError } = await createSupabaseBrowserClient().auth.getUser()
+      if (userError || !userResult.user) {
+        if (userError && userError.name !== "AuthSessionMissingError") {
+          console.error("Could not load the authenticated user settings.", userError)
+        }
+        if (active) setHydrated(true)
+        return
+      }
+
+      const { data, error } = await createSupabaseBrowserClient()
+        .from("user_settings")
+        .select(
+          "public_profile,show_stats_publicly,show_achievements_publicly,show_memories_publicly,automatic_photo_suggestions,theme,reduce_motion,timeline_animations",
+        )
+        .eq("user_id", userResult.user.id)
+        .maybeSingle()
+
+      if (error) {
+        console.error("Could not load the settings from Supabase; using local settings.", error)
+      } else if (data && active) {
+        setSettings({
+          publicProfile: data.public_profile,
+          showStatsPublicly: data.show_stats_publicly,
+          showAchievementsPublicly: data.show_achievements_publicly,
+          showMemoriesPublicly: data.show_memories_publicly,
+          automaticPhotoSuggestions: data.automatic_photo_suggestions,
+          theme: data.theme,
+          reduceMotion: data.reduce_motion,
+          timelineAnimations: data.timeline_animations,
+        })
+      }
+
+      if (active) setHydrated(true)
+    }
+
+    void hydrateSettings()
+    return () => {
+      active = false
+    }
   }, [])
 
   useEffect(() => {
@@ -71,7 +115,38 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   }, [settings, hydrated])
 
   function updateSetting<K extends keyof SettingsState>(key: K, value: SettingsState[K]) {
-    setSettings((prev) => ({ ...prev, [key]: value }))
+    setSettings((prev) => {
+      const next = { ...prev, [key]: value }
+      void persistSettings(next)
+      return next
+    })
+  }
+
+  async function persistSettings(settings: SettingsState) {
+    const supabase = createSupabaseBrowserClient()
+    const { data: userResult, error: userError } = await supabase.auth.getUser()
+    if (userError || !userResult.user) {
+      if (userError && userError.name !== "AuthSessionMissingError") {
+        console.error("Could not identify the user while saving settings.", userError)
+      }
+      return
+    }
+
+    const { error } = await supabase
+      .from("user_settings")
+      .update({
+        public_profile: settings.publicProfile,
+        show_stats_publicly: settings.showStatsPublicly,
+        show_achievements_publicly: settings.showAchievementsPublicly,
+        show_memories_publicly: settings.showMemoriesPublicly,
+        automatic_photo_suggestions: settings.automaticPhotoSuggestions,
+        theme: settings.theme,
+        reduce_motion: settings.reduceMotion,
+        timeline_animations: settings.timelineAnimations,
+      })
+      .eq("user_id", userResult.user.id)
+
+    if (error) console.error("Could not save settings to Supabase.", error)
   }
 
   function resetSettings() {

@@ -1,7 +1,8 @@
 "use client"
 
 import { Fragment, useEffect, useSyncExternalStore, type ReactNode } from "react"
-import { getTripsVersion, hydrateTripsFromStorage, subscribeTrips } from "@/lib/data"
+import { getTripsVersion, hydrateTripsFromStorage, replaceTrips, subscribeTrips, trips } from "@/lib/data"
+import { syncTripsWithSupabase } from "@/lib/supabase/trip-sync"
 
 /**
  * Loads the saved trips once the browser is ready and re-renders the current
@@ -15,6 +16,17 @@ export function TripsBoundary({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     hydrateTripsFromStorage()
+    let active = true
+    void syncTripsWithSupabase([...trips])
+      .then((remoteTrips) => {
+        if (active && remoteTrips) replaceTrips(remoteTrips)
+      })
+      .catch((error) => {
+        console.error("Could not sync trips with Supabase; using local trips.", error)
+      })
+    return () => {
+      active = false
+    }
   }, [])
 
   return <Fragment key={version}>{children}</Fragment>

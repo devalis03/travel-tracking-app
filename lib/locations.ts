@@ -477,6 +477,7 @@ Buenos Aires|AR|-34.6037|-58.3816
 Mendoza|AR|-32.8908|-68.8272
 Cordoba|AR|-31.4201|-64.1888
 Bariloche|AR|-41.1335|-71.3103
+El Chalten|AR|-49.3315|-72.8863
 Ushuaia|AR|-54.8019|-68.303
 Salta|AR|-24.7821|-65.4232
 Rosario|AR|-32.9442|-60.6505
@@ -549,6 +550,46 @@ export interface CitySearchResult {
   country: CountryMeta
 }
 
+export function searchCitiesInCatalog(
+  query: string,
+  cities: LocationCity[],
+  countries: CountryMeta[],
+  limit = 8,
+): CitySearchResult[] {
+  const q = normalize(query)
+  if (!q) return []
+  const countryByCode = new Map(countries.map((country) => [country.code, country]))
+  const indexed = cities.map((city) => ({
+    city,
+    key: normalize(city.name),
+    countryKey: normalize(countryByCode.get(city.countryCode)?.name ?? ""),
+  }))
+  const scored: Array<{ result: CitySearchResult; score: number }> = []
+  for (const entry of indexed) {
+    let score = -1
+    if (entry.key === q) score = 0
+    else if (entry.key.startsWith(q)) score = 1
+    else if (entry.key.split(/[\s-]+/).some((word) => word.startsWith(q))) score = 2
+    else if (entry.key.includes(q)) score = 3
+    else if (entry.countryKey.startsWith(q)) score = 4
+    if (score < 0) continue
+    const country = countryByCode.get(entry.city.countryCode)
+    if (country) scored.push({ result: { city: entry.city, country }, score })
+  }
+  return scored
+    .sort((a, b) => a.score - b.score || a.result.city.name.localeCompare(b.result.city.name))
+    .slice(0, limit)
+    .map(({ result }) => result)
+}
+
+export function searchCountriesInCatalog(query: string, countries: CountryMeta[], limit = 8): CountryMeta[] {
+  const q = normalize(query)
+  return countries
+    .filter((country) => !q || normalize(country.name).includes(q))
+    .sort((a, b) => Number(!normalize(a.name).startsWith(q)) - Number(!normalize(b.name).startsWith(q)) || a.name.localeCompare(b.name))
+    .slice(0, limit)
+}
+
 /**
  * Searches the city dataset. Matches on city name first (prefix, then word
  * prefix, then substring) and, when the query is a country name, returns that
@@ -591,6 +632,14 @@ export function searchCountries(query: string, limit = 8): CountryMeta[] {
 /** Converts a search result (or a manual entry) into the `CityInfo` stored on a trip. */
 export function toCityInfo(city: LocationCity): CityInfo {
   return { name: city.name, lat: city.lat, lon: city.lon, countryCode: city.countryCode, placeId: city.id }
+}
+
+/** Returns canonical coordinates for a city when the local catalog knows it. */
+export function getKnownCityCoordinates(name: string, countryCode: string): Pick<CityInfo, "lat" | "lon"> | undefined {
+  const city = INDEXED_CITIES.find(
+    (entry) => entry.city.countryCode === countryCode && entry.key === normalize(name),
+  )?.city
+  return city ? { lat: city.lat, lon: city.lon } : undefined
 }
 
 /** Fallback for a destination the dataset doesn't know: the user supplies the country. */
