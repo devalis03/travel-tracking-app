@@ -1,4 +1,4 @@
-import { trips, getCountryMeta, getAllTripsSorted, getTripCountryCodes, getTripCountryNames, getTripTitle } from "@/lib/data"
+import { getCompletedTrips, getCountryMeta, getAllTripsSorted, getTripCountryCodes, getTripCountryNames, getTripTitle } from "@/lib/data"
 import type { Trip } from "@/lib/types"
 
 /**
@@ -42,7 +42,7 @@ function tripDays(trip: Trip): number {
 /** Year a country was first ever visited, across all trips regardless of year. */
 function firstVisitYearByCountry(): Map<string, number> {
   const firstYear = new Map<string, number>()
-  for (const trip of trips) {
+  for (const trip of getCompletedTrips()) {
     const year = new Date(trip.startDate).getFullYear()
     for (const code of getTripCountryCodes(trip)) {
       const existing = firstYear.get(code)
@@ -54,12 +54,12 @@ function firstVisitYearByCountry(): Map<string, number> {
 
 /** Every year that has at least one trip, most recent first. */
 export function getRecapYears(): number[] {
-  const years = new Set(trips.map((t) => new Date(t.startDate).getFullYear()))
+  const years = new Set(getCompletedTrips().map((t) => new Date(t.startDate).getFullYear()))
   return [...years].sort((a, b) => b - a)
 }
 
 export function getRecapForYear(year: number): RecapData | undefined {
-  const yearTrips = trips
+  const yearTrips = getCompletedTrips()
     .filter((t) => new Date(t.startDate).getFullYear() === year)
     .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime())
 

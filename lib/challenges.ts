@@ -1,6 +1,6 @@
 import type { LucideIcon } from "lucide-react"
 import { Flag, Building2, Globe, Plane, Camera, Heart } from "lucide-react"
-import { trips, getCountryMeta, getTripCountryCodes } from "@/lib/data"
+import { getCompletedTrips, getCountryMeta, getTripCountryCodes } from "@/lib/data"
 
 /**
  * Challenges are forward-looking personal travel goals, distinct from
@@ -50,7 +50,7 @@ function countNewWithinWindow<T>(entries: Array<{ date: number; key: T }>): numb
 
 function getNewCountriesInWindow(): number {
   const entries: Array<{ date: number; key: string }> = []
-  for (const t of trips) {
+  for (const t of getCompletedTrips()) {
     const date = new Date(t.startDate).getTime()
     for (const code of getTripCountryCodes(t)) entries.push({ date, key: code })
   }
@@ -59,7 +59,7 @@ function getNewCountriesInWindow(): number {
 
 function getNewCitiesInWindow(): number {
   const entries: Array<{ date: number; key: string }> = []
-  for (const t of trips) {
+  for (const t of getCompletedTrips()) {
     const date = new Date(t.startDate).getTime()
     for (const city of t.cities) entries.push({ date, key: city.name })
   }
@@ -68,7 +68,7 @@ function getNewCitiesInWindow(): number {
 
 function getNewContinentsInWindow(): number {
   const entries: Array<{ date: number; key: string }> = []
-  for (const t of trips) {
+  for (const t of getCompletedTrips()) {
     const date = new Date(t.startDate).getTime()
     for (const code of getTripCountryCodes(t)) {
       const continent = getCountryMeta(code)?.continent
@@ -80,17 +80,17 @@ function getNewContinentsInWindow(): number {
 
 function getTripsInWindow(): number {
   const cutoff = getWindowCutoff()
-  return trips.filter((t) => new Date(t.startDate).getTime() >= cutoff).length
+  return getCompletedTrips().filter((t) => new Date(t.startDate).getTime() >= cutoff).length
 }
 
 function getTripsWithMemoriesInWindow(): number {
   const cutoff = getWindowCutoff()
-  return trips.filter((t) => new Date(t.startDate).getTime() >= cutoff && t.photos.length > 0).length
+  return getCompletedTrips().filter((t) => new Date(t.startDate).getTime() >= cutoff && t.photos.length > 0).length
 }
 
 function hasReturnedToAFavorite(): boolean {
   const counts = new Map<string, number>()
-  for (const t of trips) {
+  for (const t of getCompletedTrips()) {
     for (const code of getTripCountryCodes(t)) counts.set(code, (counts.get(code) ?? 0) + 1)
   }
   return [...counts.values()].some((count) => count > 1)

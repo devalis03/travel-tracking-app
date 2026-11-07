@@ -1,7 +1,7 @@
 import Link from "next/link"
-import { MapPin, Heart, HelpCircle, XCircle } from "lucide-react"
+import { MapPin, Heart, HelpCircle, XCircle, Clock3 } from "lucide-react"
 import type { Trip } from "@/lib/types"
-import { formatDateRange } from "@/lib/data"
+import { formatDateRange, isUpcomingTrip } from "@/lib/data"
 import { MediaImage } from "@/components/media/media-image"
 
 const RETURN_ICON = {
@@ -12,10 +12,13 @@ const RETURN_ICON = {
 
 export function TripCard({ trip }: { trip: Trip }) {
   const ReturnIcon = RETURN_ICON[trip.wouldReturn]
+  const upcoming = isUpcomingTrip(trip)
   return (
     <Link
       href={`/trips/${trip.id}`}
-      className="group flex gap-4 rounded-2xl border border-border bg-card/60 p-3 transition-colors hover:bg-card"
+      className={`group flex gap-4 rounded-2xl border p-3 transition-colors hover:bg-card ${
+        upcoming ? "border-accent/40 bg-accent/5" : "border-border bg-card/60"
+      }`}
     >
       <div className="relative size-20 shrink-0 overflow-hidden rounded-xl bg-secondary/40">
         <MediaImage
@@ -27,7 +30,14 @@ export function TripCard({ trip }: { trip: Trip }) {
         />
       </div>
       <div className="flex min-w-0 flex-1 flex-col justify-center gap-1">
-        <p className="truncate font-serif text-base leading-tight">{trip.destinationLabel}</p>
+        <div className="flex min-w-0 items-center gap-2">
+          <p className="truncate font-serif text-base leading-tight">{trip.destinationLabel}</p>
+          {upcoming && (
+            <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-accent/15 px-2 py-0.5 text-[10px] font-medium text-accent">
+              <Clock3 className="size-3" /> Upcoming
+            </span>
+          )}
+        </div>
         <p className="text-xs text-muted-foreground">{formatDateRange(trip.startDate, trip.endDate)}</p>
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <MapPin className="size-3" />

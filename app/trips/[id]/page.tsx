@@ -15,6 +15,7 @@ import {
   getTripCountryNames,
   formatDateRange,
   formatMonthYear,
+  isUpcomingTrip,
   saveTrip,
 } from "@/lib/data"
 import { ScreenHeader } from "@/components/layout/screen-header"
@@ -65,6 +66,7 @@ export default function TripDetailPage({
     .filter((t, i, arr) => t.id !== trip.id && arr.findIndex((o) => o.id === t.id) === i)
   const returnInfo = RETURN_COPY[trip.wouldReturn]
   const ReturnIcon = returnInfo.icon
+  const upcoming = isUpcomingTrip(trip)
 
   // Opened from Timeline at a specific point in time: Back should return to
   // that exact month rather than resetting Timeline to today.
@@ -91,6 +93,15 @@ export default function TripDetailPage({
             </Button>
           </div>
         </div>
+
+        {upcoming && (
+          <div className="mt-4 rounded-2xl border border-accent/30 bg-accent/10 px-4 py-3 text-sm text-foreground/90">
+            <p className="font-medium text-accent">Upcoming trip</p>
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+              This trip is planned and will count as visited after its end date.
+            </p>
+          </div>
+        )}
 
         <div className="mt-2 flex items-center gap-1.5 text-sm">
           <MapPin className="size-4 text-accent" />

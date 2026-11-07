@@ -23,7 +23,14 @@ interface RemoteTripRow {
   note: string | null
   trip_cities: Array<{
     position: number
-    cities: Array<{
+    cities: {
+      id: string
+      name: string
+      country_code: string
+      latitude: number
+      longitude: number
+      place_id: string | null
+    } | Array<{
       id: string
       name: string
       country_code: string
@@ -218,7 +225,7 @@ async function readRemoteTrips(userId: string): Promise<Trip[]> {
         cities: row.trip_cities
           .sort((a, b) => a.position - b.position)
           .flatMap(({ cities }) => {
-            const city = cities?.[0]
+            const city = Array.isArray(cities) ? cities[0] : cities
             return city
               ? [{
                   name: city.name,
