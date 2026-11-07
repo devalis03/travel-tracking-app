@@ -26,6 +26,9 @@ function loadProfile(): ProfileInfo {
       ...DEFAULT_PROFILE,
       ...(typeof profile.name === "string" ? { name: profile.name } : {}),
       ...(typeof profile.username === "string" ? { username: profile.username } : {}),
+      ...(typeof profile.phone === "string" ? { phone: profile.phone } : {}),
+      ...(typeof profile.age === "number" && Number.isInteger(profile.age) ? { age: profile.age } : {}),
+      ...(typeof profile.gender === "string" ? { gender: profile.gender } : {}),
       ...(typeof profile.homeCountry === "string" ? { homeCountry: profile.homeCountry } : {}),
       ...(typeof profile.bio === "string" ? { bio: profile.bio } : {}),
       ...(typeof profile.avatarUrl === "string" ? { avatarUrl: profile.avatarUrl } : {}),
@@ -64,7 +67,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
 
       const { data, error } = await createSupabaseBrowserClient()
         .from("profiles")
-        .select("username,display_name,bio,home_country_code,avatar_url,member_since")
+        .select("username,display_name,phone,age,gender,bio,home_country_code,avatar_url,member_since")
         .eq("id", userResult.user.id)
         .maybeSingle()
 
@@ -74,6 +77,9 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
         setProfile({
           name: data.display_name,
           username: data.username,
+          phone: data.phone ?? "",
+          age: data.age ?? null,
+          gender: data.gender ?? "",
           homeCountry: data.home_country_code ? (getWorldCountry(data.home_country_code)?.name ?? data.home_country_code) : "",
           bio: data.bio ?? "",
           avatarUrl: data.avatar_url ?? DEFAULT_PROFILE.avatarUrl,
@@ -125,6 +131,9 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     const profileUpdate = {
       username: profile.username,
       display_name: profile.name,
+      phone: profile.phone || null,
+      age: profile.age,
+      gender: profile.gender || null,
       bio: profile.bio || null,
       avatar_url: profile.avatarUrl || null,
       ...(countryCode ? { home_country_code: countryCode } : {}),

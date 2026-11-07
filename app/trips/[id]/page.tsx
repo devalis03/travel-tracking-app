@@ -15,12 +15,14 @@ import {
   getTripCountryNames,
   formatDateRange,
   formatMonthYear,
+  saveTrip,
 } from "@/lib/data"
 import { ScreenHeader } from "@/components/layout/screen-header"
 import { MediaImage } from "@/components/media/media-image"
 import { PhotoSuggestions } from "@/components/trips/photo-suggestions"
 import { NotFoundState } from "@/components/trips/not-found-state"
 import { TripFormSheet } from "@/components/add-trip/trip-form-sheet"
+import { deleteTripFromSupabase } from "@/lib/supabase/trip-sync"
 import { Button } from "@/components/ui/button"
 import {
   AlertDialog,
@@ -51,6 +53,7 @@ export default function TripDetailPage({
   const router = useRouter()
   const [editing, setEditing] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const trip = getTripById(id)
   if (!trip) return <NotFoundState title="Trip" backHref="/trips/list" backLabel="View trips" />
 
@@ -187,10 +190,22 @@ export default function TripDetailPage({
             <AlertDialogCancel>Keep trip</AlertDialogCancel>
             <AlertDialogAction
               variant="destructive"
-              onClick={() => {
-                router.replace("/trips/list")
+              disabled={deleting}
+              onClick={async () => {
+                setDeleting(true)
                 deleteTrip(trip.id)
-                toast.success("Trip deleted")
+                router.replace("/trips/list")
+                try {
+                  await deleteTripFromSupabase(trip.id)
+                  toast.success("Trip deleted")
+                } catch (error) {
+                  saveTrip(trip)
+                  toast.error("Could not delete the trip remotely", {
+                    description: error instanceof Error ? error.message : "The local trip was restored.",
+                  })
+                } finally {
+                  setDeleting(false)
+                }
               }}
             >
               Delete

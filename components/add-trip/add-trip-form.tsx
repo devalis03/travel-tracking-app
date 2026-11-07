@@ -14,6 +14,7 @@ import { DateField } from "@/components/add-trip/date-field"
 import { createTripId, deriveDestinationLabel, saveTrip } from "@/lib/data"
 import { getWorldCountry } from "@/lib/locations"
 import { imageFileToDataUrl } from "@/lib/images"
+import { syncTripToSupabase } from "@/lib/supabase/trip-sync"
 import type { CityInfo, MemoryPhoto, Trip, WouldReturn } from "@/lib/types"
 
 const MAX_PHOTOS = 12
@@ -107,7 +108,7 @@ export function AddTripForm({ trip, onDone, onCancel, onDirtyChange }: TripFormP
     }
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const nextErrors: typeof errors = {}
     if (state.cities.length === 0) nextErrors.cities = "Add at least one city."
@@ -135,12 +136,18 @@ export function AddTripForm({ trip, onDone, onCancel, onDirtyChange }: TripFormP
     }
 
     const persisted = saveTrip(saved)
-    if (persisted) {
-      toast.success(isEditing ? "Trip updated" : "Trip saved", { description: `${destinationLabel} is on your map.` })
-    } else {
-      toast.warning("Saved for this session only", {
-        description: "Browser storage is full, so remove some photos to keep this trip permanently.",
+    try {
+      await syncTripToSupabase(saved)
+      toast.success(isEditing ? "Trip updated" : "Trip saved", {
+        description: persisted ? `${destinationLabel} is on your map and account.` : "Saved to your account.",
       })
+    } catch (error) {
+      console.error("Could not sync the saved trip to Supabase.", error)
+      toast.warning(persisted ? "Saved locally; sync pending" : "Saved for this session only", {
+        description: error instanceof Error ? error.message : "Reconnect and try again later.",
+      })
+    } finally {
+      setSaving(false)
     }
     onDone(saved)
     if (!isEditing) router.push(`/trips/${saved.id}`)
