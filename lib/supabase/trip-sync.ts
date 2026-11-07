@@ -40,6 +40,13 @@ interface RemoteTripRow {
   }>
 }
 
+interface RemotePhotoRow {
+  id: string
+  storage_path: string
+  caption: string | null
+  position: number
+}
+
 async function uploadPhoto(userId: string, tripId: string, photo: MemoryPhoto, position: number) {
   const response = await fetch(photo.url)
   if (!response.ok) throw new Error(`Could not read photo ${photo.id}`)
@@ -53,6 +60,12 @@ async function uploadPhoto(userId: string, tripId: string, photo: MemoryPhoto, p
   })
   if (error) throw error
   return storagePath
+}
+
+function getLocalPhotoId(storagePath: string): string {
+  const fileName = storagePath.split("/").pop() ?? storagePath
+  const withoutExtension = fileName.replace(/\.[^.]+$/, "")
+  return withoutExtension.replace(/^\d+-/, "")
 }
 
 async function ensureCity(userId: string, city: Trip["cities"][number]) {
@@ -81,7 +94,58 @@ async function ensureCity(userId: string, city: Trip["cities"][number]) {
   return data.id as string
 }
 
-async function importTrip(userId: string, trip: Trip) {
+async function replaceTripChildren(userId: string, remoteTripId: string, trip: Trip) {
+  const supabase = createSupabaseBrowserClient()
+  const cityRows = []
+  for (const [position, city] of trip.cities.entries()) {
+    cityRows.push({ trip_id: remoteTripId, city_id: await ensureCity(userId, city), position })
+  }
+
+  const { error: deleteCitiesError } = await supabase.from("trip_cities").delete().eq("trip_id", remoteTripId)
+  if (deleteCitiesError) throw deleteCitiesError
+  if (cityRows.length > 0) {
+    const { error } = await supabase.from("trip_cities").insert(cityRows)
+    if (error) throw error
+  }
+
+  const { data: previousPhotos, error: previousPhotosError } = await supabase
+    .from("trip_photos")
+    .select("id,storage_path,caption,position")
+    .eq("trip_id", remoteTripId)
+  if (previousPhotosError) throw previousPhotosError
+
+  const previousByLocalId = new Map(
+    ((previousPhotos ?? []) as RemotePhotoRow[]).map((photo) => [getLocalPhotoId(photo.storage_path), photo]),
+  )
+  const photoRows = []
+  for (const [position, photo] of trip.photos.entries()) {
+    const previous = previousByLocalId.get(photo.id)
+    photoRows.push({
+      trip_id: remoteTripId,
+      storage_path: previous?.storage_path ?? (await uploadPhoto(userId, remoteTripId, photo, position)),
+      caption: photo.caption ?? null,
+      position,
+    })
+  }
+
+  const retainedPaths = new Set(photoRows.map((photo) => photo.storage_path))
+  const pathsToRemove = ((previousPhotos ?? []) as RemotePhotoRow[])
+    .map((photo) => photo.storage_path)
+    .filter((storagePath) => !retainedPaths.has(storagePath))
+
+  const { error: deletePhotosError } = await supabase.from("trip_photos").delete().eq("trip_id", remoteTripId)
+  if (deletePhotosError) throw deletePhotosError
+  if (photoRows.length > 0) {
+    const { error } = await supabase.from("trip_photos").insert(photoRows)
+    if (error) throw error
+  }
+  if (pathsToRemove.length > 0) {
+    const { error } = await supabase.storage.from("travel-photos").remove(pathsToRemove)
+    if (error) throw error
+  }
+}
+
+async function upsertTrip(userId: string, trip: Trip) {
   const supabase = createSupabaseBrowserClient()
   const { data: existing, error: existingError } = await supabase
     .from("trips")
@@ -90,48 +154,32 @@ async function importTrip(userId: string, trip: Trip) {
     .eq("local_id", trip.id)
     .maybeSingle()
   if (existingError) throw existingError
-  if (existing) return
 
-  const { data: inserted, error: tripError } = await supabase
-    .from("trips")
-    .insert({
-      user_id: userId,
-      local_id: trip.id,
-      title: trip.title ?? null,
-      destination_label: trip.destinationLabel,
-      start_date: trip.startDate,
-      end_date: trip.endDate,
-      favorite_place: trip.favoritePlace ?? null,
-      highlight: trip.highlight ?? null,
-      would_return: trip.wouldReturn,
-      note: trip.note ?? null,
-    })
-    .select("id")
-    .single()
-  if (tripError) throw tripError
-
-  const cityRows = []
-  for (const [position, city] of trip.cities.entries()) {
-    cityRows.push({ trip_id: inserted.id, city_id: await ensureCity(userId, city), position })
+  const tripValues = {
+    user_id: userId,
+    local_id: trip.id,
+    title: trip.title ?? null,
+    destination_label: trip.destinationLabel,
+    start_date: trip.startDate,
+    end_date: trip.endDate,
+    favorite_place: trip.favoritePlace ?? null,
+    highlight: trip.highlight ?? null,
+    would_return: trip.wouldReturn,
+    note: trip.note ?? null,
   }
-  if (cityRows.length > 0) {
-    const { error } = await supabase.from("trip_cities").insert(cityRows)
+
+  let remoteTripId: string
+  if (existing) {
+    const { error } = await supabase.from("trips").update(tripValues).eq("id", existing.id)
     if (error) throw error
+    remoteTripId = existing.id as string
+  } else {
+    const { data: inserted, error } = await supabase.from("trips").insert(tripValues).select("id").single()
+    if (error) throw error
+    remoteTripId = inserted.id as string
   }
 
-  const photoRows = []
-  for (const [position, photo] of trip.photos.entries()) {
-    photoRows.push({
-      trip_id: inserted.id,
-      storage_path: await uploadPhoto(userId, inserted.id, photo, position),
-      caption: photo.caption ?? null,
-      position,
-    })
-  }
-  if (photoRows.length > 0) {
-    const { error } = await supabase.from("trip_photos").insert(photoRows)
-    if (error) throw error
-  }
+  await replaceTripChildren(userId, remoteTripId, trip)
 }
 
 async function readRemoteTrips(userId: string): Promise<Trip[]> {
@@ -156,7 +204,11 @@ async function readRemoteTrips(userId: string): Promise<Trip[]> {
               .from("travel-photos")
               .createSignedUrl(photo.storage_path, 3600)
             if (signedError) throw signedError
-            return { id: photo.id, url: signed.signedUrl, ...(photo.caption ? { caption: photo.caption } : {}) }
+            return {
+              id: getLocalPhotoId(photo.storage_path),
+              url: signed.signedUrl,
+              ...(photo.caption ? { caption: photo.caption } : {}),
+            }
           }),
       )
       return {
@@ -202,11 +254,66 @@ export async function syncTripsWithSupabase(localTrips: Trip[]): Promise<Trip[] 
     }
 
     if (localTrips.length > 0) {
-      for (const trip of localTrips) await importTrip(userResult.user.id, trip)
+      for (const trip of localTrips) await upsertTrip(userResult.user.id, trip)
     }
 
     return readRemoteTrips(userResult.user.id)
   } catch (error) {
     throw new Error(`Trip sync failed: ${formatSyncError(error)}`)
+  }
+}
+
+async function getCurrentUserId(): Promise<string | null> {
+  const { data: userResult, error: userError } = await createSupabaseBrowserClient().auth.getUser()
+  if (userError || !userResult.user) {
+    if (userError && userError.name !== "AuthSessionMissingError") {
+      console.error("Could not identify the user while syncing a trip.", userError)
+    }
+    return null
+  }
+  return userResult.user.id
+}
+
+export async function syncTripToSupabase(trip: Trip): Promise<void> {
+  try {
+    const userId = await getCurrentUserId()
+    if (!userId) return
+    await upsertTrip(userId, trip)
+  } catch (error) {
+    throw new Error(`Trip save failed: ${formatSyncError(error)}`)
+  }
+}
+
+export async function deleteTripFromSupabase(localTripId: string): Promise<void> {
+  try {
+    const userId = await getCurrentUserId()
+    if (!userId) return
+
+    const supabase = createSupabaseBrowserClient()
+    const { data: remoteTrip, error: lookupError } = await supabase
+      .from("trips")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("local_id", localTripId)
+      .maybeSingle()
+    if (lookupError) throw lookupError
+    if (!remoteTrip) return
+
+    const { data: photos, error: photosError } = await supabase
+      .from("trip_photos")
+      .select("storage_path")
+      .eq("trip_id", remoteTrip.id)
+    if (photosError) throw photosError
+
+    const { error: deleteError } = await supabase.from("trips").delete().eq("id", remoteTrip.id)
+    if (deleteError) throw deleteError
+
+    const storagePaths = ((photos ?? []) as Array<{ storage_path: string }>).map((photo) => photo.storage_path)
+    if (storagePaths.length > 0) {
+      const { error } = await supabase.storage.from("travel-photos").remove(storagePaths)
+      if (error) throw error
+    }
+  } catch (error) {
+    throw new Error(`Trip deletion failed: ${formatSyncError(error)}`)
   }
 }

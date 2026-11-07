@@ -7,6 +7,9 @@
 export interface ProfileInfo {
   name: string
   username: string
+  phone: string
+  age: number | null
+  gender: string
   homeCountry: string
   bio: string
   avatarUrl: string
@@ -16,6 +19,9 @@ export interface ProfileInfo {
 export const DEFAULT_PROFILE: ProfileInfo = {
   name: "Gaston",
   username: "gaston",
+  phone: "",
+  age: null,
+  gender: "",
   homeCountry: "Argentina",
   bio: "Always planning the next trip.",
   avatarUrl: "/profile-avatar.png",
