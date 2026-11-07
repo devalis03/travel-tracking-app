@@ -108,7 +108,7 @@ export function AddTripForm({ trip, onDone, onCancel, onDirtyChange }: TripFormP
     }
   }
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const nextErrors: typeof errors = {}
     if (state.cities.length === 0) nextErrors.cities = "Add at least one city."
@@ -136,21 +136,23 @@ export function AddTripForm({ trip, onDone, onCancel, onDirtyChange }: TripFormP
     }
 
     const persisted = saveTrip(saved)
-    try {
-      await syncTripToSupabase(saved)
-      toast.success(isEditing ? "Trip updated" : "Trip saved", {
-        description: persisted ? `${destinationLabel} is on your map and account.` : "Saved to your account.",
-      })
-    } catch (error) {
-      console.error("Could not sync the saved trip to Supabase.", error)
-      toast.warning(persisted ? "Saved locally; sync pending" : "Saved for this session only", {
-        description: error instanceof Error ? error.message : "Reconnect and try again later.",
-      })
-    } finally {
-      setSaving(false)
-    }
+    toast.success(isEditing ? "Trip updated" : "Trip saved", {
+      description: persisted ? "Syncing it to your account..." : "Saved for this session only.",
+    })
     onDone(saved)
     if (!isEditing) router.push(`/trips/${saved.id}`)
+
+    void syncTripToSupabase(saved)
+      .then(() => {
+        toast.success("Trip synced to your account")
+      })
+      .catch((error) => {
+        console.error("Could not sync the saved trip to Supabase.", error)
+        toast.warning("Saved locally; sync pending", {
+          description: error instanceof Error ? error.message : "Reconnect and try again later.",
+        })
+      })
+      .finally(() => setSaving(false))
   }
 
   return (
@@ -316,6 +318,7 @@ export function AddTripForm({ trip, onDone, onCancel, onDirtyChange }: TripFormP
                   type="button"
                   onClick={() => patch({ photos: state.photos.filter((p) => p.id !== photo.id) })}
                   aria-label="Remove photo"
+                  title="Remove photo"
                   className="absolute right-1 top-1 flex size-5 items-center justify-center rounded-full bg-background/80 text-foreground backdrop-blur"
                 >
                   <X className="size-3" />
@@ -324,6 +327,7 @@ export function AddTripForm({ trip, onDone, onCancel, onDirtyChange }: TripFormP
             ))}
           </ul>
         )}
+        {state.photos.length > 0 && <p className="text-xs text-muted-foreground">Tap the X on a photo to remove it from this trip.</p>}
       </div>
 
       <div className="mt-2 flex gap-2">

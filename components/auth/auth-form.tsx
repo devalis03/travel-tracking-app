@@ -208,21 +208,41 @@ export function AuthForm() {
         </div>
       )}
 
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="auth-email">Email</Label>
-        <Input id="auth-email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" required />
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="auth-password">Password</Label>
-        <Input id="auth-password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete={isSignUp ? "new-password" : "current-password"} minLength={6} required />
-      </div>
-      <Button type="submit" disabled={pending}>
-        {pending ? "Please wait..." : isSignUp ? "Create my account" : "Sign in"}
-      </Button>
-      {isSignUp && (
-        <p className="flex items-center justify-center gap-1.5 text-center text-xs text-muted-foreground">
-          <Check className="size-3.5 text-accent" /> You can change these details later in your profile.
-        </p>
+      {isSignUp ? (
+        <div className="flex flex-col gap-4 rounded-3xl border border-border bg-card/60 p-4">
+          <div>
+            <p className="font-serif text-lg">Account details</p>
+            <p className="mt-1 text-xs text-muted-foreground">Use these details to access your travel journal.</p>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="auth-email">Email</Label>
+            <Input id="auth-email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" required />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="auth-password">Password</Label>
+            <Input id="auth-password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="new-password" minLength={6} required />
+          </div>
+          <Button type="submit" disabled={pending}>
+            {pending ? "Creating account..." : "Create my account"}
+          </Button>
+          <p className="flex items-center justify-center gap-1.5 text-center text-xs text-muted-foreground">
+            <Check className="size-3.5 text-accent" /> You can change these details later in your profile.
+          </p>
+        </div>
+      ) : (
+        <>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="auth-email">Email</Label>
+            <Input id="auth-email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" required />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="auth-password">Password</Label>
+            <Input id="auth-password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" minLength={6} required />
+          </div>
+          <Button type="submit" disabled={pending}>
+            {pending ? "Signing in..." : "Sign in"}
+          </Button>
+        </>
       )}
       <div className="relative flex items-center justify-center">
         <span className="absolute inset-x-0 border-t border-border" />

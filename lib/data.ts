@@ -378,7 +378,7 @@ export function deriveDestinationLabel(cities: CityInfo[]): string {
 }
 
 export function getTripsByCountry(code: string): Trip[] {
-  return trips
+  return getCompletedTrips()
     .filter((t) => getTripCountryCodes(t).includes(code))
     .sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime())
 }
@@ -401,6 +401,15 @@ export function getTripById(id: string): Trip | undefined {
 
 export function getAllTripsSorted(): Trip[] {
   return [...trips].sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime())
+}
+
+export function isUpcomingTrip(trip: Trip, now = new Date()): boolean {
+  const endOfTrip = new Date(`${trip.endDate}T23:59:59`)
+  return endOfTrip.getTime() >= now.getTime()
+}
+
+export function getCompletedTrips(): Trip[] {
+  return trips.filter((trip) => !isUpcomingTrip(trip))
 }
 
 export interface CountrySummary {
@@ -442,7 +451,7 @@ export function getCountryPreference(code: string): CountryPreference | undefine
 }
 
 export function getVisitedCountryCodes(): string[] {
-  return Array.from(new Set(trips.flatMap((t) => getTripCountryCodes(t))))
+  return Array.from(new Set(getCompletedTrips().flatMap((t) => getTripCountryCodes(t))))
 }
 
 export function getContinentCounts(): Record<string, number> {
@@ -469,14 +478,15 @@ export interface GlobalStats {
 }
 
 export function getGlobalStats(): GlobalStats {
+  const completedTrips = getCompletedTrips()
   const visitedCodes = getVisitedCountryCodes()
-  const uniqueCities = new Set(trips.flatMap((t) => t.cities.map((c) => c.name)))
+  const uniqueCities = new Set(completedTrips.flatMap((t) => t.cities.map((c) => c.name)))
   const continentSet = new Set(visitedCodes.map((code) => getCountryMeta(code)?.continent).filter(Boolean))
 
   // A multi-country trip counts toward the visit tally of every country it
   // touched, so "most visited" reflects how often you were actually there.
   const visitCountByCountry = new Map<string, number>()
-  for (const t of trips) {
+  for (const t of completedTrips) {
     for (const code of getTripCountryCodes(t)) {
       visitCountByCountry.set(code, (visitCountByCountry.get(code) ?? 0) + 1)
     }
@@ -487,7 +497,7 @@ export function getGlobalStats(): GlobalStats {
   }
 
   const yearCounts = new Map<string, number>()
-  for (const t of trips) {
+  for (const t of completedTrips) {
     const year = t.startDate.slice(0, 4)
     yearCounts.set(year, (yearCounts.get(year) ?? 0) + 1)
   }
@@ -505,7 +515,7 @@ export function getGlobalStats(): GlobalStats {
   return {
     countries: visitedCodes.length,
     cities: uniqueCities.size,
-    tripsCount: trips.length,
+    tripsCount: completedTrips.length,
     worldPercent: Math.round((visitedCodes.length / WORLD_COUNTRY_COUNT) * 1000) / 10,
     continentsVisited: continentSet.size,
     continentsTotal: CONTINENTS.length,
@@ -519,7 +529,7 @@ export function getGlobalStats(): GlobalStats {
 }
 
 export function getAllMemories(): Array<{ tripId: string; photoId: string; url: string; caption?: string; countryName: string; date: string }> {
-  return trips.flatMap((t) =>
+  return getCompletedTrips().flatMap((t) =>
     t.photos.map((p) => ({
       tripId: t.id,
       photoId: p.id,

@@ -17,7 +17,7 @@ import {
   Images,
   Repeat2,
 } from "lucide-react"
-import { getVisitedCountryCodes, getAllTripsSorted, getGlobalStats, getTripCountryCodes, trips } from "@/lib/data"
+import { getVisitedCountryCodes, getAllTripsSorted, getCompletedTrips, getGlobalStats, getTripCountryCodes } from "@/lib/data"
 
 /**
  * Centralized achievement catalog. Every achievement's progress is derived
@@ -229,20 +229,20 @@ function getRawProgress(requirementType: RequirementType): number {
     case "countries":
       return getVisitedCountryCodes().length
     case "cities": {
-      const uniqueCities = new Set(getAllTripsSorted().flatMap((trip) => trip.cities.map((city) => city.name)))
+      const uniqueCities = new Set(getCompletedTrips().flatMap((trip) => trip.cities.map((city) => city.name)))
       return uniqueCities.size
     }
     case "continents":
       return getGlobalStats().continentsVisited
     case "trips":
-      return getAllTripsSorted().length
+      return getCompletedTrips().length
     case "trips-with-photos":
-      return getAllTripsSorted().filter((trip) => trip.photos.length > 0).length
+      return getCompletedTrips().filter((trip) => trip.photos.length > 0).length
     case "total-photos":
-      return trips.reduce((sum, trip) => sum + trip.photos.length, 0)
+      return getCompletedTrips().reduce((sum, trip) => sum + trip.photos.length, 0)
     case "return-visit": {
       const counts = new Map<string, number>()
-      for (const t of trips) {
+      for (const t of getCompletedTrips()) {
         for (const code of getTripCountryCodes(t)) counts.set(code, (counts.get(code) ?? 0) + 1)
       }
       return [...counts.values()].some((count) => count > 1) ? 1 : 0
