@@ -260,8 +260,20 @@ export async function syncTripsWithSupabase(localTrips: Trip[]): Promise<Trip[] 
       return null
     }
 
+    const remoteTrips = await readRemoteTrips(userResult.user.id)
+    const remoteById = new Map(remoteTrips.map((trip) => [trip.id, trip]))
+
     if (localTrips.length > 0) {
-      for (const trip of localTrips) await upsertTrip(userResult.user.id, trip)
+      for (const localTrip of localTrips) {
+        const remoteTrip = remoteById.get(localTrip.id)
+        const localDataIsIncomplete =
+          remoteTrip &&
+          (localTrip.cities.length === 0 && remoteTrip.cities.length > 0 ||
+            localTrip.photos.length === 0 && remoteTrip.photos.length > 0)
+
+        if (localDataIsIncomplete) continue
+        await upsertTrip(userResult.user.id, localTrip)
+      }
     }
 
     return readRemoteTrips(userResult.user.id)
